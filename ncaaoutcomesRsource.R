@@ -1,50 +1,47 @@
+library("Hmisc")
 outcomes = read.csv("ncaaoutcomes.csv")[1]
-ecdf = ecdf(outcomes[,1])
-plot(ecdf, xlim = c(quantile(ecdf, probs=0), quantile(ecdf, probs=0.99)), main = "ECDF Kenpom", xlab = "Perfect Bracket Odds (1/x)")
+Ecdf(outcomes[,1], xlim = c(0, hdquantile(outcomes[,1], .99)), main = "ECDF Kenpom", xlab = "Perfect Bracket Odds (1/x)", subtitles=FALSE)
 
-increment = 0.001
-top99seq = seq(0, 0.998, increment)
-numBrackets = seq(1:length(top99seq))
+smallIncrement = 0.000001
+largeIncrement = 0.0001
+x = c(seq(0, 0.01-smallIncrement, smallIncrement), seq(0.01, 0.99, largeIncrement))
+quantiles = quantile(outcomes[,1], x, names=FALSE)
+sumBrackets = seq(1:length(x))
 
-for (i in seq(0, .998, increment))
+index = 1
+for (i in x)
 {
-  firstQuantile = quantile(ecdf, probs = i, name = FALSE)
-  secondQuantile = quantile(ecdf, probs = i + increment, name = FALSE)
+  increment = x[index+1]-x[index]
+  firstQuantile = quantiles[index]
+  secondQuantile = quantiles[index+1]
   averageQuantile = (firstQuantile+secondQuantile)/2.0
   decimalProbability = 1.0/averageQuantile
   numBracketsBetweenQuantiles = increment/decimalProbability
-  numBrackets[(i+increment)/increment] = numBracketsBetweenQuantiles
+  if (index==1)
+  {
+    sumBrackets[index] = numBracketsBetweenQuantiles
+  }
+  else
+  {
+   sumBrackets[index] = numBracketsBetweenQuantiles + sumBrackets[index-1]
+  }
+  
+  if (index%%1000==0)
+  {
+    print(x[index])
+  }
+  index = index+1
 }
 
-sumBrackets = numBrackets
-for (i in 2:length(numBrackets))
-{
-  sumBrackets[i] = sumBrackets[i] +  sumBrackets[i-1]
-}
-
-plot(x=seq(0, .998, increment), y = sumBrackets, type='l', main = 'Bracket Percentiles', ylab = 'Number of Brackets', xlab = 'Percentiles')
-plot(x=seq(0, .5, increment), y = sumBrackets[1:501], type='l', main = 'Bracket Percentiles', ylab = 'Number of Brackets', xlab = 'Percentiles')
-plot(x=seq(0, .01, increment), y = sumBrackets[1:11], type='l', main = 'Bracket Percentiles', ylab = 'Number of Brackets', xlab = 'Percentiles')
-
-#take smaller steps to zoom in at the very far left edge
-increment = 0.00001;
-top0002 = seq(0, 0.0002, increment)
-numBrackets = seq(1:length(top0002))
-
-for (i in top0002)
-{
-  firstQuantile = quantile(ecdf, probs = i, name = FALSE)
-  secondQuantile = quantile(ecdf, probs = i + increment, name = FALSE)
-  averageQuantile = (firstQuantile+secondQuantile)/2.0
-  decimalProbability = 1.0/averageQuantile
-  numBracketsBetweenQuantiles = increment/decimalProbability
-  numBrackets[(i+increment)/increment] = numBracketsBetweenQuantiles
-}
-
-sumBrackets = numBrackets
-for (i in 2:length(numBrackets))
-{
-  sumBrackets[i] = sumBrackets[i] +  sumBrackets[i-1]
-}
-
-plot(x=top0002, y = sumBrackets, type='l', main = 'Bracket Percentiles', ylab = 'Number of Brackets', xlab = 'Percentiles')
+x = c(seq(0, 0.01-smallIncrement, smallIncrement), seq(0.01, 0.99, largeIncrement))
+y = sumBrackets[1:length(x)]
+plot(x=x, y = y, type='l', main = 'Bracket Percentiles', ylab = 'Number of Brackets', xlab = 'Percentiles')
+x = c(seq(0, 0.01-smallIncrement, smallIncrement), seq(0.01, 0.5, largeIncrement))
+y = sumBrackets[1:length(x)]
+plot(x=x, y = y, type='l', main = 'Bracket Percentiles', ylab = 'Number of Brackets', xlab = 'Percentiles')
+x = seq(0, 0.01, smallIncrement)
+y = sumBrackets[1:length(x)]
+plot(x=x, y = y, type='l', main = 'Bracket Percentiles', ylab = 'Number of Brackets', xlab = 'Percentiles')
+x = seq(0, 0.0002, smallIncrement)
+y = sumBrackets[1:length(x)]
+plot(x=x, y = y, type='l', main = 'Bracket Percentiles', ylab = 'Number of Brackets', xlab = 'Percentiles')

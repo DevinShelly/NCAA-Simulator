@@ -30,7 +30,7 @@ BOOL firstTeamWasFavored(NSDictionary *firstTeam, NSDictionary *secondTeam)
     return pythag1 > pythag2;
 }
 
-long double simulateBracket(NSArray *bracket, BOOL advanceFavorites, BOOL advanceUnderdogs)
+long double simulateBracket(NSArray *bracket, BOOL advanceFavorites, BOOL advanceUnderdogs, BOOL useRealLifeResults, NSUInteger finalNumberOfTeams)
 {
     assert(!(advanceFavorites && advanceUnderdogs));
     NSMutableArray *bracketCopy = bracket.mutableCopy;
@@ -40,32 +40,78 @@ long double simulateBracket(NSArray *bracket, BOOL advanceFavorites, BOOL advanc
         return [evaluatedObject isKindOfClass:[NSArray class]];
     }];
     NSArray *playinGames = [bracketCopy filteredArrayUsingPredicate:predicate];
+    NSString *roundString = @"round1";
     for (NSArray *playinGame in playinGames)
     {
         NSDictionary *firstTeam = [playinGame objectAtIndex:0];
         NSDictionary *secondTeam = [playinGame objectAtIndex:1];
         
-        BOOL firstTeamWon = advanceFavorites ? firstTeamWasFavored(firstTeam, secondTeam) : advanceUnderdogs ? firstTeamWasFavored(secondTeam, firstTeam) : firstTeamWonGame(firstTeam, secondTeam);
-        NSUInteger indexOfPlayinGame = [bracketCopy indexOfObjectIdenticalTo:playinGame];
+        BOOL firstTeamWon;
+        BOOL hasRealLifeResults = ![[firstTeam objectForKey:roundString] isKindOfClass:[NSNull class]];
+        
+        if (hasRealLifeResults) /* Always use real life results for playin game if available */
+        {
+            firstTeamWon = [[firstTeam objectForKey:roundString] boolValue];
+        }
+        else if (advanceFavorites)
+        {
+            firstTeamWon = firstTeamWasFavored(firstTeam, secondTeam);
+        }
+        else if (advanceUnderdogs)
+        {
+            firstTeamWon = firstTeamWasFavored(secondTeam, firstTeam);
+        }
+        
+        else
+        {
+            firstTeamWon = firstTeamWonGame(firstTeam, secondTeam);
+        }
+        
+        NSUInteger index = [bracketCopy indexOfObjectIdenticalTo:playinGame];
         if (firstTeamWon)
         {
-            [bracketCopy replaceObjectAtIndex:indexOfPlayinGame withObject:firstTeam];
+            [bracketCopy replaceObjectAtIndex:index withObject:firstTeam];
         }
         else
         {
-            [bracketCopy replaceObjectAtIndex:indexOfPlayinGame withObject:secondTeam];
+            [bracketCopy replaceObjectAtIndex:index withObject:secondTeam];
         }
     }
     
     long double bracketProbability = 1.0;
-    while (bracketCopy.count > 1)
+    NSInteger round = 1;
+    while (bracketCopy.count > finalNumberOfTeams)
     {
+        round++;
+        NSString *roundString = [NSString stringWithFormat:@"round%ld", round];
         for (NSUInteger i = 0; i<bracketCopy.count-1; i++)
         {
             NSDictionary *firstTeam = [bracketCopy objectAtIndex:i];
             NSDictionary *secondTeam = [bracketCopy objectAtIndex:i+1];
             
-            BOOL firstTeamWon = advanceFavorites ? firstTeamWasFavored(firstTeam, secondTeam) : advanceUnderdogs ? firstTeamWasFavored(secondTeam, firstTeam) : firstTeamWonGame(firstTeam, secondTeam);
+            BOOL firstTeamWon;
+            BOOL hasRealLifeResults = ![[firstTeam objectForKey:roundString] isKindOfClass:[NSNull class]];
+            
+            if (advanceFavorites)
+            {
+                firstTeamWon = firstTeamWasFavored(firstTeam, secondTeam);
+            }
+            else if (advanceUnderdogs)
+            {
+                firstTeamWon = firstTeamWasFavored(secondTeam, firstTeam);
+            }
+            else if (useRealLifeResults && hasRealLifeResults)
+            {
+                BOOL bothWon = [[firstTeam objectForKey:roundString] boolValue] && [[secondTeam objectForKey:roundString] boolValue];
+                BOOL bothLost = ![[firstTeam objectForKey:roundString] boolValue] && ![[secondTeam objectForKey:roundString] boolValue];
+                assert(!bothWon && !bothLost);
+                firstTeamWon = [[firstTeam objectForKey:roundString] boolValue];
+            }
+            else
+            {
+                firstTeamWon = firstTeamWonGame(firstTeam, secondTeam);
+            }
+            
             if (firstTeamWon)
             {
                 [bracketCopy removeObjectAtIndex:i+1];
@@ -75,15 +121,6 @@ long double simulateBracket(NSArray *bracket, BOOL advanceFavorites, BOOL advanc
             {
                 [bracketCopy removeObjectAtIndex:i];
                 bracketProbability *= oddsFirstTeamWinsGame(secondTeam, firstTeam);
-            }
-        }
-        
-        if (bracketCopy.count == 4)
-        {
-            NSInteger seedSum = 0;
-            for (NSDictionary *team in bracketCopy)
-            {
-                seedSum += [[team objectForKey:@"seed"] integerValue];
             }
         }
     }
@@ -108,7 +145,13 @@ int main(int argc, const char * argv[])
             NSString *name = [teamInfo objectAtIndex:1];
             double pythag = [[teamInfo objectAtIndex:2] doubleValue];
             NSNumber *pythagNumber = [NSNumber numberWithDouble:pythag];
-            NSDictionary *teamDict = [NSDictionary dictionaryWithObjectsAndKeys:pythagNumber, @"pythag", name, @"name", seed, @"seed", nil];
+            id round1 = teamInfo.count >3 ? [NSNumber numberWithBool:[[teamInfo objectAtIndex:3] boolValue]] : [NSNull null];
+            id round2 = teamInfo.count >4 ? [NSNumber numberWithBool:[[teamInfo objectAtIndex:4] boolValue]] : [NSNull null];
+            id round3 = teamInfo.count >5 ? [NSNumber numberWithBool:[[teamInfo objectAtIndex:5] boolValue]] : [NSNull null];
+            id round4 = teamInfo.count >6 ? [NSNumber numberWithBool:[[teamInfo objectAtIndex:6] boolValue]] : [NSNull null];
+            id round5 = teamInfo.count >7 ? [NSNumber numberWithBool:[[teamInfo objectAtIndex:7] boolValue]] : [NSNull null];
+            id round6 = teamInfo.count >8 ? [NSNumber numberWithBool:[[teamInfo objectAtIndex:8] boolValue]] : [NSNull null];
+            NSDictionary *teamDict = @{@"pythag":pythagNumber, @"name":name, @"seed":seed, @"round1":round1, @"round2":round2, @"round3":round3, @"round4":round4, @"round5":round5, @"round6":round6};
             
             /* Playin games share a seed */
             if ([teams objectForKey:seed])
@@ -134,11 +177,13 @@ int main(int argc, const char * argv[])
             }
         }
         
-        long double allFavoritesProbability = simulateBracket(bracket, YES, NO);
-        long double allUnderdogsProbability = simulateBracket(bracket, NO, YES);
+        long double allFavoritesProbability = simulateBracket(bracket, YES, NO, NO, 16);
+        long double allUnderdogsProbability = simulateBracket(bracket, NO, YES, NO, 16);
+        long double realLifeProbability = simulateBracket(bracket, NO, NO, YES, 16);
         
         NSLog(@"The odds that the favorites win every game is 1 in %.0Lf", 1.0L/allFavoritesProbability);
         NSLog(@"The odds that the underdogs win every game is 1 in %.0Lf", 1.0L/allUnderdogsProbability);
+        NSLog(@"The odds that the real life bracket would have happen was 1 in %.0Lf", 1.0L/realLifeProbability);
         
         NSUInteger numSims = 1000000;
         NSMutableArray *outcomes = [NSMutableArray arrayWithCapacity:numSims];
@@ -149,8 +194,8 @@ int main(int argc, const char * argv[])
             {
                 NSLog(@"%lu", (i+1)/(numSims/100));
             }
-            long double probability =  simulateBracket(bracket, NO, NO);
-            [outcomes addObject:[NSNumber numberWithDouble:1.0/probability]];
+            long double probability =  simulateBracket(bracket, NO, NO, NO, 16);
+            [outcomes addObject:[NSNumber numberWithDouble:1.0L/probability]];
         }
         
         [outcomes sortUsingSelector:@selector(compare:)];
